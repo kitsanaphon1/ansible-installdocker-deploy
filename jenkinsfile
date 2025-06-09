@@ -1,25 +1,28 @@
 pipeline {
-  agent any
+  agent any  // 📌 ใช้ Jenkins agent ใดก็ได้ที่ว่างอยู่
 
   environment {
-    ANSIBLE_HOST = "20.198.179.127"
-    ANSIBLE_USER = "boho"
+    ANSIBLE_HOST = "20.198.179.127"  // 🌐 IP ของเครื่อง Ansible VM
+    ANSIBLE_USER = "boho"            // 👤 ชื่อ user สำหรับ ssh เข้า Ansible VM
   }
 
   stages {
 
     stage('📂 ดึงไฟล์ vm_ip.txt จาก Terraform Job') {
       steps {
+        // ✅ ดึงไฟล์ vm_ip.txt ที่มี IP ของ VM เป้าหมาย
+        // จาก Jenkins Job ชื่อว่า 'terraform' ที่เคยรันสำเร็จ
         copyArtifacts(
-          projectName: 'terraform',
-          filter: 'vm_ip.txt',
-          selector: [$class: 'StatusBuildSelector']
+          projectName: 'terraform',              // 💼 Jenkins job ที่ใช้ Terraform
+          filter: 'vm_ip.txt',                   // 📄 เอาเฉพาะไฟล์ IP ที่ export ไว้
+          selector: [$class: 'StatusBuildSelector'] // 🔄 ดึงจาก build ล่าสุดที่สถานะเป็น SUCCESS หรือ UNSTABLE
         )
       }
     }
 
     stage('📤 ส่ง vm_ip.txt ไปยัง Ansible VM') {
       steps {
+        // ✅ ส่งไฟล์ vm_ip.txt ไปไว้ที่ home directory ของ Ansible VM
         sshagent(credentials: ['ssh-ansible-agent']) {
           sh '''
             scp -o StrictHostKeyChecking=no vm_ip.txt ${ANSIBLE_USER}@${ANSIBLE_HOST}:~/vm_ip.txt
@@ -28,22 +31,40 @@ pipeline {
       }
     }
 
-    stage('🚀 Run Ansible Playbook ติดตั้ง Docker') {
-  steps {
-    sshagent(credentials: ['ssh-ansible-agent']) {
-      sh '''
-        ssh -o StrictHostKeyChecking=no ${ANSIBLE_USER}@${ANSIBLE_HOST} '
-          export ANSIBLE_HOST_KEY_CHECKING=False
-          WORKDIR="/home/boho/install-docker-deploy"
-          source ~/ansible-env/bin/activate &&
-          cd "$WORKDIR/playbooks" &&
-          ansible-playbook install-docker.yaml -i "$(cat ~/vm_ip.txt)," \
-            -e ansible_user=azureuser
-        '
-      '''
+    stage('🔐 ส่ง private key เข้า Ansible VM') {
+      steps {
+        // ✅ ส่ง private key ที่ Jenkins ใช้ ssh เข้า VM เป้าหมาย
+        // → ไปไว้ใน Ansible VM เพื่อให้ Ansible ใช้ ssh ได้เช่นกัน
+        sshagent(credentials: ['ssh-tfproj-test']) {
+          sh '''
+            # 📤 copy private key จาก Jenkins ลงไปยัง ~/.ssh/id_rsa ของ Ansible VM
+            scp -o StrictHostKeyChecking=no ~/.ssh/id_rsa ${ANSIBLE_USER}@${ANSIBLE_HOST}:~/.ssh/id_rsa
+
+            # 🔒 ตั้ง permission ให้ปลอดภัย
+            ssh -o StrictHostKeyChecking=no ${ANSIBLE_USER}@${ANSIBLE_HOST} 'chmod 600 ~/.ssh/id_rsa'
+          '''
+        }
+      }
     }
-  }
-}
+
+    stage('🚀 Run Ansible Playbook ติดตั้ง Docker') {
+      steps {
+        // ✅ SSH เข้า Ansible VM แล้วรัน playbook `install-docker.yaml`
+        // โดย Ansible จะใช้ IP ที่ได้จาก vm_ip.txt เพื่อ SSH เข้า VM เป้าหมาย
+        sshagent(credentials: ['ssh-ansible-agent']) {
+          sh '''
+            ssh -o StrictHostKeyChecking=no ${ANSIBLE_USER}@${ANSIBLE_HOST} '
+              export ANSIBLE_HOST_KEY_CHECKING=False  # 🔧 ปิดการตรวจสอบ host key เพื่อไม่ให้ SSH พัง
+              WORKDIR="/home/boho/install-docker-deploy"  # 📁 โฟลเดอร์ที่เก็บ repo
+              source ~/ansible-env/bin/activate &&         # 🐍 เปิด virtualenv
+              cd "$WORKDIR/playbooks" &&                   # 📂 ไปยังโฟลเดอร์ playbook
+              ansible-playbook install-docker.yaml -i "$(cat ~/vm_ip.txt)," \
+                -e ansible_user=azureuser                 # 🧑‍💻 ใช้ user azureuser SSH เข้า VM ที่จะติดตั้ง Docker
+            '
+          '''
+        }
+      }
+    }
 
   }
 }
