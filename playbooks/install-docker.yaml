@@ -12,15 +12,31 @@
         name: docker.io
         state: present
 
-    - name: ⚙️ ติดตั้ง dependency สำหรับ Docker Compose
+    - name: ⚙️ ติดตั้ง dependency ที่จำเป็น
       apt:
-        name: [python3-pip, curl]
+        name:
+          - curl
         state: present
 
-    - name: 🧩 ติดตั้ง Docker Compose ด้วย pip
-      pip:
-        name: docker-compose
-        executable: pip3
+    - name: 🧩 ดาวน์โหลด Docker Compose binary
+      shell: |
+        COMPOSE_VERSION="1.29.2"
+        curl -L "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" \
+          -o /usr/local/bin/docker-compose
+      args:
+        creates: /usr/local/bin/docker-compose
+
+    - name: 🔐 ตั้ง permission ให้ Docker Compose
+      file:
+        path: /usr/local/bin/docker-compose
+        mode: '0755'
+
+    - name: 🔗 สร้าง symlink ไปที่ /usr/bin (ถ้ายังไม่มี)
+      file:
+        src: /usr/local/bin/docker-compose
+        dest: /usr/bin/docker-compose
+        state: link
+        force: no
 
     - name: 🔍 ตรวจสอบ Docker version
       shell: docker --version

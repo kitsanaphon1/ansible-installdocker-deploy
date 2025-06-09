@@ -1,15 +1,22 @@
 pipeline {
-  agent any
+  agent any  // 📌 ใช้ Jenkins agent ใดก็ได้ที่พร้อมใช้งาน
 
   environment {
-    ANSIBLE_HOST = "20.198.179.127"
-    ANSIBLE_USER = "boho"
+    ANSIBLE_HOST = "20.198.179.127"  // 🌐 IP ของ Ansible VM (เครื่องที่รัน playbook)
+    ANSIBLE_USER = "boho"            // 👤 SSH user ของ Ansible VM
   }
 
   stages {
 
     stage('📂 Copy VM IP from Terraform Job') {
       steps {
+        /*
+         ✅ ขั้นตอนนี้ทำหน้าที่:
+         - ดึงไฟล์ vm_ip.txt ซึ่งมี public IP ของ VM ที่สร้างจาก Terraform
+         - ไฟล์นี้มาจาก Jenkins Job ชื่อ 'terraform'
+         - ใช้ build ล่าสุดที่สำเร็จ (SUCCESS หรือ UNSTABLE)
+         - ไฟล์นี้จำเป็นต่อขั้นตอน Ansible เพราะใช้เป็น inventory
+        */
         copyArtifacts(
           projectName: 'terraform',
           filter: 'vm_ip.txt',
@@ -20,6 +27,12 @@ pipeline {
 
     stage('📤 Send vm_ip.txt to Ansible VM') {
       steps {
+        /*
+         ✅ ขั้นตอนนี้ทำหน้าที่:
+         - ใช้ SSH เข้าไปที่ Ansible VM โดยใช้ Credential 'ssh-ansible-agent'
+         - จากนั้น scp ไฟล์ vm_ip.txt ที่เพิ่งได้มา ไปไว้ที่ home directory ของ Ansible user
+         - เพื่อให้ Ansible ใช้ไฟล์นี้ในการอ่าน IP ของ VM เป้าหมายที่จะติดตั้ง Docker
+        */
         sshagent(credentials: ['ssh-ansible-agent']) {
           sh '''
             scp -o StrictHostKeyChecking=no vm_ip.txt ${ANSIBLE_USER}@${ANSIBLE_HOST}:~/vm_ip.txt
@@ -30,8 +43,18 @@ pipeline {
 
     stage('🚀 Run Ansible Playbook (with SSH Agent Forwarding)') {
       steps {
+        /*
+         ✅ ขั้นตอนนี้ทำหน้าที่:
+         - ใช้ SSH เข้าเครื่อง Ansible VM โดยเปิด SSH Agent Forwarding (-A)
+         - เพื่อให้ Ansible ภายในเครื่องนั้นสามารถ “ยืม” key จาก Jenkins ได้
+         - แล้วรัน ansible-playbook ชื่อ install-docker.yaml
+         - ใช้ IP จากไฟล์ vm_ip.txt เป็น inventory
+         - SSH เข้า VM เป้าหมายด้วย user `azureuser` โดยไม่ต้องส่ง key ไป
+         - ติดตั้ง Docker และ Docker Compose บน VM นั้น
+
+         🛡️ ปลอดภัยกว่าวิธีเก่า เพราะไม่ต้องส่ง key ไปให้ Ansible VM
+        */
         sshagent(credentials: ['ssh-ansible-agent']) {
-          // 🧠 ใช้ ssh -A เพื่อเปิด Agent Forwarding ไปยัง Ansible VM
           sh '''
             ssh -o StrictHostKeyChecking=no -A ${ANSIBLE_USER}@${ANSIBLE_HOST} '
               export ANSIBLE_HOST_KEY_CHECKING=False
