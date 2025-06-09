@@ -1,11 +1,11 @@
 pipeline {
-  agent any
+  agent any  // 📌 ใช้ Jenkins agent ใดก็ได้ที่พร้อมใช้งาน
 
   environment {
-    ANSIBLE_HOST = "20.198.179.127"
-    ANSIBLE_USER = "boho"
-    REPO_URL     = "git@github.com:kitsanaphon1/install-docker-deploy.git"
-    WORKDIR      = "/home/boho/projects/install-docker-deploy"  // ✅ เปลี่ยน path ตรงนี้
+    ANSIBLE_HOST = "20.198.179.127"  // 🌐 IP ของ Ansible VM
+    ANSIBLE_USER = "boho"            // 👤 SSH user ของ Ansible VM
+    WORKDIR      = "/home/boho/install-docker-deploy"  // 📁 ตำแหน่งเก็บ repo
+    REPO_URL     = "git@github.com:kitsanaphon1/install-docker-deploy.git" // ✅ SSH URL
   }
 
   stages {
@@ -34,28 +34,28 @@ pipeline {
       steps {
         sshagent(credentials: ['ssh-ansible-agent']) {
           sh '''
-            ssh -o StrictHostKeyChecking=no -A ${ANSIBLE_USER}@${ANSIBLE_HOST} '
-              echo "🧹 ลบ repo เก่าถ้ามี..."
+            ssh -o StrictHostKeyChecking=no ${ANSIBLE_USER}@${ANSIBLE_HOST} "
+              echo '🧹 ลบ repo เก่า (ถ้ามี)...'
               rm -rf ${WORKDIR}
 
-              echo "📥 Clone ใหม่จาก GitHub..."
+              echo '📥 Clone ใหม่จาก GitHub...'
               git clone ${REPO_URL} ${WORKDIR}
-            '
+            "
           '''
         }
       }
     }
 
-    stage('🧹 Run Uninstall Playbook via Ansible') {
+    stage('🚀 Run Ansible Playbook (with SSH Agent Forwarding)') {
       steps {
         sshagent(credentials: ['ssh-ansible-agent']) {
           sh '''
-            ssh -o StrictHostKeyChecking=no -A ${ANSIBLE_USER}@${ANSIBLE_HOST} '
+            ssh -o StrictHostKeyChecking=no -A ${ANSIBLE_USER}@${ANSIBLE_HOST} "
               export ANSIBLE_HOST_KEY_CHECKING=False
               source ~/ansible-env/bin/activate
               cd ${WORKDIR}/playbooks
-              ansible-playbook uninstall-docker.yaml -i "$(cat ~/vm_ip.txt)," -e ansible_user=azureuser
-            '
+              ansible-playbook install-docker.yaml -i \\"$(cat ~/vm_ip.txt),\\" -e ansible_user=azureuser
+            "
           '''
         }
       }
@@ -65,10 +65,10 @@ pipeline {
       steps {
         sshagent(credentials: ['ssh-ansible-agent']) {
           sh '''
-            ssh -o StrictHostKeyChecking=no ${ANSIBLE_USER}@${ANSIBLE_HOST} '
-              echo "🧽 ลบโฟลเดอร์หลังใช้งาน..."
+            ssh -o StrictHostKeyChecking=no ${ANSIBLE_USER}@${ANSIBLE_HOST} "
+              echo '🧽 ล้างโฟลเดอร์หลังใช้งาน...'
               rm -rf ${WORKDIR}
-            '
+            "
           '''
         }
       }
