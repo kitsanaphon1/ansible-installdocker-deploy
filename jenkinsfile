@@ -7,20 +7,22 @@ pipeline {
   }
 
   stages {
-    stage('📥 Clone Repo ใหม่บน Ansible VM') {
+
+    stage('📂 ดึงไฟล์ vm_ip.txt จาก Terraform Job') {
+      steps {
+        copyArtifacts(
+          projectName: 'terraform',
+          filter: 'vm_ip.txt',
+          selector: [$class: 'StatusBuildSelector']
+        )
+      }
+    }
+
+    stage('📤 ส่ง vm_ip.txt ไปยัง Ansible VM') {
       steps {
         sshagent(credentials: ['ssh-ansible-agent']) {
           sh '''
-            ssh -o StrictHostKeyChecking=no ${ANSIBLE_USER}@${ANSIBLE_HOST} '
-              REPO_URL="https://github.com/kitsanaphon1/ANSIBLE-INSTALLDOCKER-DEPLOY.git"
-              WORKDIR="/home/boho/install-docker-deploy"
-
-              echo "🧹 ลบโฟลเดอร์เดิม (ถ้ามี)"
-              rm -rf "$WORKDIR"
-
-              echo "📥 Clone ใหม่"
-              git clone "$REPO_URL" "$WORKDIR"
-            '
+            scp -o StrictHostKeyChecking=no vm_ip.txt ${ANSIBLE_USER}@${ANSIBLE_HOST}:~/vm_ip.txt
           '''
         }
       }
@@ -41,5 +43,6 @@ pipeline {
         }
       }
     }
+
   }
 }
