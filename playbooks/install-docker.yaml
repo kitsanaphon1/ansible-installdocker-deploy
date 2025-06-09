@@ -1,0 +1,41 @@
+- name: 🐳 ติดตั้ง Docker และ Docker Compose
+  hosts: all
+  become: true
+
+  tasks:
+    - name: 📦 อัปเดต apt package
+      apt:
+        update_cache: yes
+
+    - name: 🐳 ติดตั้ง Docker
+      apt:
+        name: docker.io
+        state: present
+
+    - name: ⚙️ ติดตั้ง dependency สำหรับ Docker Compose
+      apt:
+        name: [python3-pip, curl]
+        state: present
+
+    - name: 🧩 ติดตั้ง Docker Compose ด้วย pip
+      pip:
+        name: docker-compose
+        executable: pip3
+
+    - name: 🔍 ตรวจสอบ Docker version
+      shell: docker --version
+      register: docker_version
+      changed_when: false
+
+    - name: 🔍 ตรวจสอบ Docker Compose version
+      shell: docker-compose --version
+      register: compose_version
+      changed_when: false
+
+    - name: 🖨️ แสดงผลเวอร์ชัน Docker
+      debug:
+        msg: "{{ docker_version.stdout }}"
+
+    - name: 🖨️ แสดงผลเวอร์ชัน Docker Compose
+      debug:
+        msg: "{{ compose_version.stdout }}"
