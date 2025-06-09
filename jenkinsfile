@@ -29,20 +29,21 @@ pipeline {
     }
 
     stage('🚀 Run Ansible Playbook ติดตั้ง Docker') {
-      steps {
-        sshagent(credentials: ['ssh-ansible-agent']) {
-          sh '''
-            ssh -o StrictHostKeyChecking=no ${ANSIBLE_USER}@${ANSIBLE_HOST} '
-              WORKDIR="/home/boho/install-docker-deploy"
-              source ~/ansible-env/bin/activate &&
-              cd "$WORKDIR/playbooks" &&
-              ansible-playbook install-docker.yaml -i "$(cat ~/vm_ip.txt)," \
-                -e ansible_user=azureuser
-            '
-          '''
-        }
-      }
+  steps {
+    sshagent(credentials: ['ssh-ansible-agent']) {
+      sh '''
+        ssh -o StrictHostKeyChecking=no ${ANSIBLE_USER}@${ANSIBLE_HOST} '
+          export ANSIBLE_HOST_KEY_CHECKING=False
+          WORKDIR="/home/boho/install-docker-deploy"
+          source ~/ansible-env/bin/activate &&
+          cd "$WORKDIR/playbooks" &&
+          ansible-playbook install-docker.yaml -i "$(cat ~/vm_ip.txt)," \
+            -e ansible_user=azureuser
+        '
+      '''
     }
+  }
+}
 
   }
 }
