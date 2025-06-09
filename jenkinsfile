@@ -5,7 +5,7 @@ pipeline {
     ANSIBLE_HOST = "20.198.179.127"                     // 🌐 IP ของเครื่อง Ansible Server
     ANSIBLE_USER = "boho"                               // 👤 User SSH เข้าเครื่อง Ansible
     REPO_URL     = "https://github.com/kitsanaphon1/ANSIBLE-INSTALLDOCKER-DEPLOY.git"
-    WORKDIR      = "/home/boho/install-docker-deploy"   // 📁 โฟลเดอร์ที่เก็บ repo บนเครื่อง Ansible
+    WORKDIR      = "/home/boho/install-docker-deploy"   // 📁 โฟลเดอร์ที่เก็บ repo บนเครื่อง Ansible-server
   }
 
   stages {
