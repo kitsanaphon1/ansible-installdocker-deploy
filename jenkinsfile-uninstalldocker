@@ -1,11 +1,11 @@
 pipeline {
-  agent any  // 📌 ใช้ Jenkins agent ใดก็ได้ที่พร้อมใช้งาน
+  agent any
 
   environment {
-    ANSIBLE_HOST = "20.198.179.127"  // 🌐 IP ของ Ansible VM (เครื่องที่รัน playbook)
-    ANSIBLE_USER = "boho"            // 👤 SSH user ของ Ansible VM
-    ANSIBLE_REPO = "https://github.com/kitsanaphon1/ansible-installdocker-deploy.git" // 🔁 ปรับเป็น repo จริง
-    WORKDIR = "/home/boho/install-docker-deploy" // 📁 path ที่จะ clone ไป
+    ANSIBLE_HOST = "20.198.179.127"
+    ANSIBLE_USER = "boho"
+    ANSIBLE_REPO = "https://github.com/kitsanaphon1/ansible-installdocker-deploy.git"  // 🔁 เปลี่ยนเป็น repo จริงของคุณ
+    WORKDIR = "/home/boho/playbboks-test"  // ✅ เปลี่ยนชื่อ directory แล้ว
   }
 
   stages {
@@ -33,12 +33,12 @@ pipeline {
     stage('📥 Clone Ansible Project on Ansible VM') {
       steps {
         sshagent(credentials: ['ssh-ansible-agent']) {
-          sh '''
+          sh """
             ssh -o StrictHostKeyChecking=no ${ANSIBLE_USER}@${ANSIBLE_HOST} '
               rm -rf ${WORKDIR} &&
               git clone ${ANSIBLE_REPO} ${WORKDIR}
             '
-          '''
+          """
         }
       }
     }
@@ -46,15 +46,15 @@ pipeline {
     stage('🚀 Run Ansible Playbook (with SSH Agent Forwarding)') {
       steps {
         sshagent(credentials: ['ssh-ansible-agent']) {
-          sh '''
+          sh """
             ssh -o StrictHostKeyChecking=no -A ${ANSIBLE_USER}@${ANSIBLE_HOST} '
               export ANSIBLE_HOST_KEY_CHECKING=False
               source ~/ansible-env/bin/activate &&
               cd "${WORKDIR}/playbooks" &&
-              ansible-playbook install-docker.yaml -i "$(cat ~/vm_ip.txt)," \
+              ansible-playbook install-docker.yaml -i "\$(cat ~/vm_ip.txt)," \
                 -e ansible_user=azureuser
             '
-          '''
+          """
         }
       }
     }
