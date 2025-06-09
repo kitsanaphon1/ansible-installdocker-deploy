@@ -2,10 +2,10 @@ pipeline {
   agent any
 
   environment {
-    ANSIBLE_HOST = "20.198.179.127"  // IP ของเครื่อง Ansible
-    ANSIBLE_USER = "boho"            // SSH user ที่ใช้เข้าเครื่อง Ansible
-    REPO_URL = "git@github.com:kitsanaphon1/install-docker-deploy.git"  // ✅ ใช้ SSH URL
-    WORKDIR = "/home/boho/install-docker-deploy"
+    ANSIBLE_HOST = "20.198.179.127"
+    ANSIBLE_USER = "boho"
+    REPO_URL     = "git@github.com:kitsanaphon1/install-docker-deploy.git"
+    WORKDIR      = "/home/boho/projects/install-docker-deploy"  // ✅ เปลี่ยน path ตรงนี้
   }
 
   stages {
