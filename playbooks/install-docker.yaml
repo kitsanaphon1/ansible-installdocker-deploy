@@ -1,24 +1,23 @@
 ---
-- name: 🐳 ติดตั้ง Docker และ Docker Compose บน VM
+- name: 🐳 ติดตั้ง Docker และ Docker Compose (Plugin) บน VM
   hosts: all
   become: true
   vars:
     docker_users:
       - azureuser
-    docker_compose_version: "2.24.7"
+    docker_compose_version: "v2.24.7"
 
   tasks:
     - name: 🧹 ล้าง Docker เดิม (ถ้ามี)
       apt:
-        name: "{{ item }}"
+        name:
+          - docker
+          - docker-engine
+          - docker.io
+          - containerd
+          - runc
         state: absent
         purge: yes
-      loop:
-        - docker
-        - docker-engine
-        - docker.io
-        - containerd
-        - runc
       ignore_errors: true
 
     - name: 🔧 ติดตั้ง dependency พื้นฐาน
@@ -70,14 +69,18 @@
       failed_when: "'Hello from Docker!' not in docker_test.stdout"
       changed_when: false
 
-    - name: ⬇️ ดาวน์โหลด Docker Compose
-      get_url:
-        url: "https://github.com/docker/compose/releases/download/v{{ docker_compose_version }}/docker-compose-linux-x86_64"
-        dest: /usr/local/bin/docker-compose
-        mode: '0755'
+    - name: ⬇️ ดาวน์โหลด Docker Compose (plugin)
+      become: false
+      shell: |
+        mkdir -p ~/.docker/cli-plugins
+        curl -SL https://github.com/docker/compose/releases/download/{{ docker_compose_version }}/docker-compose-linux-x86_64 -o ~/.docker/cli-plugins/docker-compose
+        chmod +x ~/.docker/cli-plugins/docker-compose
+      args:
+        executable: /bin/bash
 
     - name: ✅ ตรวจสอบ Docker Compose เวอร์ชัน
-      shell: docker-compose --version
+      become: false
+      shell: docker compose version
       register: compose_version
       changed_when: false
 
