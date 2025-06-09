@@ -2,23 +2,24 @@ pipeline {
   agent any
 
   environment {
-    ANSIBLE_HOST = "20.198.179.127"                     // 🌐 IP ของเครื่อง Ansible Server
-    ANSIBLE_USER = "boho"                               // 👤 User SSH เข้าเครื่อง Ansible
-    REPO_URL     = "https://github.com/kitsanaphon1/ANSIBLE-INSTALLDOCKER-DEPLOY.git"
-    WORKDIR      = "/home/boho/install-docker-deploy"   // 📁 โฟลเดอร์ที่เก็บ repo บนเครื่อง Ansible-server
+    ANSIBLE_HOST = "20.198.179.127"
+    ANSIBLE_USER = "boho"
   }
 
   stages {
-    stage('📥 Clone Repo บน Ansible VM') {
+    stage('📥 Clone Repo ใหม่บน Ansible VM') {
       steps {
         sshagent(credentials: ['ssh-ansible-agent']) {
           sh '''
             ssh -o StrictHostKeyChecking=no ${ANSIBLE_USER}@${ANSIBLE_HOST} '
-              if [ ! -d ${WORKDIR} ]; then
-                git clone ${REPO_URL} ${WORKDIR};
-              else
-                cd ${WORKDIR} && git pull;
-              fi
+              REPO_URL="https://github.com/kitsanaphon1/ANSIBLE-INSTALLDOCKER-DEPLOY.git"
+              WORKDIR="/home/boho/install-docker-deploy"
+
+              echo "🧹 ลบโฟลเดอร์เดิม (ถ้ามี)"
+              rm -rf "$WORKDIR"
+
+              echo "📥 Clone ใหม่"
+              git clone "$REPO_URL" "$WORKDIR"
             '
           '''
         }
@@ -30,10 +31,11 @@ pipeline {
         sshagent(credentials: ['ssh-ansible-agent']) {
           sh '''
             ssh -o StrictHostKeyChecking=no ${ANSIBLE_USER}@${ANSIBLE_HOST} '
+              WORKDIR="/home/boho/install-docker-deploy"
               source ~/ansible-env/bin/activate &&
-              cd ${WORKDIR}/playbooks &&
-              ansible-playbook install-docker.yaml -i "$(cat ~/vm_ip.txt)," -e ansible_user=azureuser \
-                -e ansible_ssh_private_key_file=~/.ssh/id_rsa
+              cd "$WORKDIR/playbooks" &&
+              ansible-playbook install-docker.yaml -i "$(cat ~/vm_ip.txt)," \
+                -e ansible_user=azureuser
             '
           '''
         }
