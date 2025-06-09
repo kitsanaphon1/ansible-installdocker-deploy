@@ -12,10 +12,9 @@
         name: docker.io
         state: present
 
-    - name: ⚙️ ติดตั้ง dependency ที่จำเป็น
+    - name: ⚙️ ติดตั้ง curl สำหรับโหลด binary
       apt:
-        name:
-          - curl
+        name: curl
         state: present
 
     - name: 🧩 ดาวน์โหลด Docker Compose binary
