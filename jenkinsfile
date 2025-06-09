@@ -1,15 +1,17 @@
 pipeline {
-  agent any  // 📌 ใช้ Jenkins agent ใดก็ได้ที่ว่างอยู่
+  agent any  // 📌 ใช้ Jenkins agent ใดก็ได้
 
   environment {
-    ANSIBLE_HOST = "20.198.179.127"  // 🌐 IP ของเครื่อง Ansible VM
-    ANSIBLE_USER = "boho"            // 👤 ชื่อ user สำหรับ ssh เข้า Ansible VM
+    ANSIBLE_HOST = "20.198.179.127"   // 🌐 IP ของเครื่อง Ansible VM
+    ANSIBLE_USER = "boho"             // 👤 ชื่อผู้ใช้ที่ SSH เข้า Ansible VM
   }
 
   stages {
 
-    stage('📂 ดึงไฟล์ vm_ip.txt จาก Terraform Job') {
+    stage('📂 Copy VM IP from Terraform Job') {
       steps {
+        // ✅ ดึงไฟล์ vm_ip.txt ที่บันทึก IP ของ VM จาก Job Terraform
+        // ใช้ build ล่าสุดที่สถานะ SUCCESS หรือ UNSTABLE
         copyArtifacts(
           projectName: 'terraform',
           filter: 'vm_ip.txt',
@@ -18,8 +20,26 @@ pipeline {
       }
     }
 
-    stage('📤 ส่ง vm_ip.txt ไปยัง Ansible VM') {
+    stage('🧪 Test SSH to New VM') {
       steps {
+        // ✅ ทดสอบ SSH เข้า VM ที่ได้จาก Terraform ด้วย Credential ที่ใช้งานจริง
+        // เพื่อเช็คว่า key สามารถเข้า VM ได้ก่อนจะส่งให้ Ansible ใช้
+        sshagent(credentials: ['ssh-tfproj-test']) {
+          sh '''
+            echo 📄 Loading IP...
+            IP=$(cat vm_ip.txt)
+
+            echo 🔌 Connecting to $IP...
+            ssh -o StrictHostKeyChecking=no azureuser@$IP "hostname && whoami"
+          '''
+        }
+      }
+    }
+
+    stage('📤 Send vm_ip.txt to Ansible VM') {
+      steps {
+        // ✅ ส่งไฟล์ vm_ip.txt ไปยังเครื่อง Ansible VM
+        // เพื่อให้ playbook ใช้ไฟล์นี้เป็น inventory
         sshagent(credentials: ['ssh-ansible-agent']) {
           sh '''
             scp -o StrictHostKeyChecking=no vm_ip.txt ${ANSIBLE_USER}@${ANSIBLE_HOST}:~/vm_ip.txt
@@ -28,48 +48,56 @@ pipeline {
       }
     }
 
-    stage('🔐 ส่ง private key เข้า Ansible VM') {
+    stage('🔐 Send Private Key to Ansible VM') {
       steps {
+        // ✅ ส่ง private key ที่ใช้ SSH เข้า VM เป้าหมาย
+        // ให้ Ansible ใช้งาน (โดย Jenkins ดึง key จาก Credential มาแบบชั่วคราว)
         sshagent(credentials: ['ssh-tfproj-test']) {
           sh '''
-            echo "📦 สร้างไฟล์ชั่วคราวจาก Jenkins Credential"
+            echo "📦 Dumping private key from Jenkins credential"
             TEMP_KEY="/tmp/temp_id_rsa"
+
+            # ❗ ssh-add -L ให้ public key → ไม่ใช้
+            # ใช้ Credential แบบ string หรือ script injection จะปลอดภัยกว่า
+            # แต่นี่คือตัวอย่างง่ายที่ใช้ sed strip header/footer สำหรับ PEM
             ssh-add -L | sed '1d;$d' > $TEMP_KEY
             chmod 600 $TEMP_KEY
 
-            echo "📤 ส่ง key ไปยัง Ansible VM"
+            echo "📤 Sending key to Ansible VM"
             scp -o StrictHostKeyChecking=no $TEMP_KEY ${ANSIBLE_USER}@${ANSIBLE_HOST}:~/.ssh/id_rsa
 
-            echo "🧹 ลบ key ชั่วคราวใน Jenkins agent"
+            echo "🧹 Cleaning up temp key on Jenkins agent"
             rm -f $TEMP_KEY
           '''
         }
       }
     }
 
-    stage('🚀 Run Ansible Playbook ติดตั้ง Docker') {
+    stage('🚀 Run Ansible Playbook') {
       steps {
+        // ✅ รัน Playbook บน Ansible VM เพื่อ SSH เข้า VM ปลายทางแล้วติดตั้ง Docker
         sshagent(credentials: ['ssh-ansible-agent']) {
           sh '''
             ssh -o StrictHostKeyChecking=no ${ANSIBLE_USER}@${ANSIBLE_HOST} '
-              export ANSIBLE_HOST_KEY_CHECKING=False
-              WORKDIR="/home/boho/install-docker-deploy"
-              source ~/ansible-env/bin/activate &&
-              cd "$WORKDIR/playbooks" &&
+              export ANSIBLE_HOST_KEY_CHECKING=False  # 🔧 ปิด host key checking เพื่อป้องกัน error ssh
+              WORKDIR="/home/boho/install-docker-deploy"  # 📁 path ของ repo บนเครื่อง Ansible
+              source ~/ansible-env/bin/activate &&        # 🐍 activate virtualenv
+              cd "$WORKDIR/playbooks" &&                  # 📂 เข้าสู่โฟลเดอร์ playbook
               ansible-playbook install-docker.yaml -i "$(cat ~/vm_ip.txt)," \
-                -e ansible_user=azureuser
+                -e ansible_user=azureuser                # 🔐 ใช้ user นี้ ssh เข้า VM ปลายทาง
             '
           '''
         }
       }
     }
 
-    stage('🧹 ลบ private key จาก Ansible VM หลังใช้งาน') {
+    stage('🧹 Remove Private Key from Ansible VM') {
       steps {
+        // ✅ ลบ private key ที่เคยส่งไปยัง Ansible VM เพื่อความปลอดภัย
         sshagent(credentials: ['ssh-ansible-agent']) {
           sh '''
             ssh -o StrictHostKeyChecking=no ${ANSIBLE_USER}@${ANSIBLE_HOST} '
-              echo "🔐 ลบ ~/.ssh/id_rsa บน Ansible VM..."
+              echo "🔐 Removing ~/.ssh/id_rsa from Ansible VM..."
               rm -f ~/.ssh/id_rsa
             '
           '''
