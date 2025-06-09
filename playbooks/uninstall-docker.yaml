@@ -1,0 +1,43 @@
+---
+- name: ❌ ถอนการติดตั้ง Docker และ Docker Compose
+  hosts: all
+  become: true
+
+  tasks:
+    - name: 🔍 ลบ package ที่เกี่ยวข้องกับ Docker
+      apt:
+        name:
+          - docker
+          - docker-engine
+          - docker.io
+          - containerd
+          - runc
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: absent
+        purge: yes
+      ignore_errors: yes
+
+    - name: 🧹 ลบ binary docker-compose (ถ้ามี)
+      file:
+        path: /usr/local/bin/docker-compose
+        state: absent
+
+    - name: 🧹 ลบ Docker directory ทั้งหมด (ระวังข้อมูล container/image จะหาย)
+      file:
+        path: /var/lib/docker
+        state: absent
+        recurse: yes
+      ignore_errors: yes
+
+    - name: 🔁 รีโหลด systemd และปิด Docker (ถ้ารันอยู่)
+      systemd:
+        name: docker
+        state: stopped
+        enabled: no
+      ignore_errors: yes
+
+    - name: ✅ แจ้งเตือนว่า Uninstall เสร็จแล้ว
+      debug:
+        msg: "✅ Docker และ Docker Compose ถูกลบเรียบร้อยแล้ว"
