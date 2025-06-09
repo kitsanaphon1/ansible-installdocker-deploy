@@ -2,10 +2,10 @@ pipeline {
   agent any
 
   environment {
-    ANSIBLE_HOST = "20.198.179.127"
-    ANSIBLE_USER = "boho"
+    ANSIBLE_HOST = "20.198.179.127"  // 🌐 IP ของ Ansible VM
+    ANSIBLE_USER = "boho"            // 👤 SSH user ของ Ansible VM
+    REPO_URL = "https://github.com/YOUR_USER/install-docker-deploy.git"  // 🔁 เปลี่ยนให้ตรงกับ repo จริง
     WORKDIR = "/home/boho/install-docker-deploy"
-    REPO_URL = "https://github.com/kitsanaphon1/ansible-installdocker-deploy.git"
   }
 
   stages {
@@ -33,15 +33,15 @@ pipeline {
     stage('📥 Clone fresh repo on Ansible VM') {
       steps {
         sshagent(credentials: ['ssh-ansible-agent']) {
-          sh '''
+          sh """
             ssh -o StrictHostKeyChecking=no ${ANSIBLE_USER}@${ANSIBLE_HOST} '
               echo "🧹 ลบ repo เก่าถ้ามี..."
-              rm -rf "$WORKDIR"
+              rm -rf ${WORKDIR}
 
               echo "📥 Clone ใหม่จาก GitHub..."
-              git clone "$REPO_URL" "$WORKDIR"
+              git clone ${REPO_URL} ${WORKDIR}
             '
-          '''
+          """
         }
       }
     }
@@ -52,9 +52,10 @@ pipeline {
           sh '''
             ssh -o StrictHostKeyChecking=no -A ${ANSIBLE_USER}@${ANSIBLE_HOST} '
               export ANSIBLE_HOST_KEY_CHECKING=False
-              source ~/ansible-env/bin/activate
-              cd "$WORKDIR/playbooks"
-              ansible-playbook uninstall-docker.yaml -i "$(cat ~/vm_ip.txt)," -e ansible_user=azureuser
+              source ~/ansible-env/bin/activate &&
+              cd ${WORKDIR}/playbooks &&
+              ansible-playbook uninstall-docker.yaml -i "$(cat ~/vm_ip.txt)," \
+                -e ansible_user=azureuser
             '
           '''
         }
@@ -64,12 +65,12 @@ pipeline {
     stage('🧽 Cleanup repo after execution') {
       steps {
         sshagent(credentials: ['ssh-ansible-agent']) {
-          sh '''
+          sh """
             ssh -o StrictHostKeyChecking=no ${ANSIBLE_USER}@${ANSIBLE_HOST} '
-              echo "🧽 ลบ repo หลังใช้งานเสร็จ..."
-              rm -rf "$WORKDIR"
+              echo "🧽 ลบโฟลเดอร์ WORKDIR..."
+              rm -rf ${WORKDIR}
             '
-          '''
+          """
         }
       }
     }
