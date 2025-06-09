@@ -32,9 +32,16 @@ pipeline {
       steps {
         sshagent(credentials: ['ssh-tfproj-test']) {
           sh '''
-            # 📤 copy private key ไปไว้ใน ~/.ssh/id_rsa บน Ansible VM
-            scp -o StrictHostKeyChecking=no ~/.ssh/id_rsa ${ANSIBLE_USER}@${ANSIBLE_HOST}:~/.ssh/id_rsa
-            ssh -o StrictHostKeyChecking=no ${ANSIBLE_USER}@${ANSIBLE_HOST} 'chmod 600 ~/.ssh/id_rsa'
+            echo "📦 สร้างไฟล์ชั่วคราวจาก Jenkins Credential"
+            TEMP_KEY="/tmp/temp_id_rsa"
+            ssh-add -L | sed '1d;$d' > $TEMP_KEY
+            chmod 600 $TEMP_KEY
+
+            echo "📤 ส่ง key ไปยัง Ansible VM"
+            scp -o StrictHostKeyChecking=no $TEMP_KEY ${ANSIBLE_USER}@${ANSIBLE_HOST}:~/.ssh/id_rsa
+
+            echo "🧹 ลบ key ชั่วคราวใน Jenkins agent"
+            rm -f $TEMP_KEY
           '''
         }
       }
@@ -62,7 +69,7 @@ pipeline {
         sshagent(credentials: ['ssh-ansible-agent']) {
           sh '''
             ssh -o StrictHostKeyChecking=no ${ANSIBLE_USER}@${ANSIBLE_HOST} '
-              echo "🔐 กำลังลบไฟล์ ~/.ssh/id_rsa..."
+              echo "🔐 ลบ ~/.ssh/id_rsa บน Ansible VM..."
               rm -f ~/.ssh/id_rsa
             '
           '''
